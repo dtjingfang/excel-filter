@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel数据筛选工具</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            padding-top: 20px;
+            padding-bottom: 40px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .table-responsive {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            margin-bottom: 0;
+        }
+        .group-header {
+            background-color: #e9ecef;
+            font-weight: bold;
+        }
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        .instructions {
+            background-color: #f0f8ff;
+            border-left: 4px solid #0d6efd;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .feature-list {
+            padding-left: 20px;
+        }
+        .feature-list li {
+            margin-bottom: 5px;
+        }
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        @media (max-width: 768px) {
+            .btn-responsive {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+            .search-container {
+                flex-direction: column;
+            }
+            .search-container input {
+                margin-bottom: 10px;
+            }
+        }
+        #loadingSpinner {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            display: none;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 999;
+            display: none;
+        }
+        .search-input-wrapper {
+            position: relative;
+            flex-grow: 1;
+        }
+        .search-input-wrapper .bi-search {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+            pointer-events: none;
+        }
+        .search-input-wrapper input {
+            padding-left: 35px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h2 class="mb-0">Excel数据筛选工具</h2>
+            </div>
+            <div class="card-body">
+                <div class="instructions">
+                    <h5>使用说明：</h5>
+                    <ol>
+                        <li>点击"选择Excel文件"按钮上传您的Excel文件</li>
+                        <li>在搜索框中输入手机号（多个手机号可用逗号或空格分隔）</li>
+                        <li>点击"搜索"按钮查看结果</li>
+                        <li>可以点击"导出结果"按钮将筛选结果下载为Excel文件</li>
+                    </ol>
+                    <h5>功能特点：</h5>
+                    <ul class="feature-list">
+                        <li>支持多手机号搜索（逗号或空格分隔）</li>
+                        <li>按手机号分组展示结果</li>
+                        <li>每组内按时间降序排序</li>
+                        <li>相同地址自动去重（保留最新记录）</li>
+                        <li>支持搜索结果导出为Excel</li>
+                    </ul>
+                </div>
+
+                <div class="mb-4">
+                    <div class="d-flex align-items-center mb-2"></div>
+                        <div class="file-input-wrapper">
+                            <button class="btn btn-primary" id="fileSelectBtn">
+                                <i class="bi bi-file-earmark-excel"></i> 选择Excel文件
+                            </button>
+                            <input type="file" id="excelFile" accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.ods" />
+                        </div>
+                        <span id="fileName" class="ms-3 text-muted"></span>
+                    </div>
+                </div>
+                
+                <div class="d-flex flex-wrap align-items-center mb-4 search-container">
+                    <div class="flex-grow-1 me-2 mb-2 mb-md-0 search-input-wrapper">
+                        <i class="bi bi-search"></i>
+                        <input type="text" id="phoneInput" class="form-control" placeholder="输入手机号，多个用逗号或空格分隔" />
+                    </div>
+                    <div>
+                        <button onclick="searchData()" class="btn btn-success me-2 btn-responsive">
+                            <i class="bi bi-search"></i> 搜索
+                        </button>
+                        <button onclick="resetSearch()" class="btn btn-secondary me-2 btn-responsive">
+                            <i class="bi bi-arrow-counterclockwise"></i> 重置
+                        </button>
+                        <button onclick="exportResults()" class="btn btn-info btn-responsive" id="exportBtn" style="display: none;">
+                            <i class="bi bi-download"></i> 导出结果
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="matchCount" class="alert alert-info" style="display: none;"></div>
+                <div id="results" class="table-responsive"></div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>© 2025 Excel数据筛选工具 | 在线版本</p>
+        </div>
+    </div>
+
+    <div id="loadingSpinner" class="text-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">加载中...</span>
+        </div>
+        <div class="mt-2">处理中，请稍候...</div>
+    </div>
+    <div class="loading-overlay"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script>
+        let workbook = null;
+        let worksheet = null;
+        let originalData = [];
+        
+        // 显示加载动画
+        function showLoading() {
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.querySelector('.loading-overlay').style.display = 'block';
+        }
+
+        // 隐藏加载动画
+        function hideLoading() {
+            document.getElementById('loadingSpinner').style.display = 'none';
+            document.querySelector('.loading-overlay').style.display = 'none';
+        }
+
+        // 显示提示消息
+        function showToast(message, type = 'info') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+            alertDiv.style.zIndex = '1050';
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                alertDiv.classList.remove('show');
+                setTimeout(() => alertDiv.remove(), 150);
+            }, 3000);
+        }
+
+        // 加载Excel文件
+        document.getElementById('excelFile').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            try {
+                showLoading();
+                document.getElementById('fileName').textContent = `已选择：${file.name}`;
+                
+                const data = await file.arrayBuffer();
+                workbook = XLSX.read(data, { type: 'array' });
+                worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                originalData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                
+                if (originalData.length > 0) {
+                    displayData(originalData);
+                    updateMatchCount(originalData.length - 1);
+                    showToast('文件加载成功！', 'success');
+                } else {
+                    showToast('文件中没有数据', 'warning');
+                }
+            } catch (error) {
+                console.error('文件处理错误:', error);
+                showToast('文件处理出错，请检查文件格式', 'danger');
+            } finally {
+                hideLoading();
+            }
+        });
+        
+        // 搜索数据
+        async function searchData() {
+            if (!originalData.length) {
+                showToast('请先上传Excel文件', 'warning');
+                return;
+            }
+            
+            const input = document.getElementById('phoneInput').value.trim();
+            if (!input) {
+                showToast('请输入要搜索的手机号', 'warning');
+                return;
+            }
+            
+            try {
+                showLoading();
+                
+                // 提取手机号（支持逗号或空格分隔）
+                const phones = input.split(/[, ]+/).filter(phone => phone.trim() !== '');
+                
+                // 在第一列中搜索匹配的手机号
+                const header = originalData[0];
+                let filteredData = [header];
+                
+                for (let i = 1; i < originalData.length; i++) {
+                    const row = originalData[i];
+                    const clueData = String(row[0] || '');
+                    
+                    if (phones.some(phone => clueData.includes(phone))) {
+                        filteredData.push(row);
+                    }
+                }
+                
+                // 按手机号分组
+                const phoneGroups = {};
+                const timeIndex = 2; // 第三列：下单时间
+                const addressIndex = 4; // 第五列：收货地址
+                
+                for (let i = 1; i < filteredData.length; i++) {
+                    const row = filteredData[i];
+                    const phone = row[0];
+                    if (!phoneGroups[phone]) {
+                        phoneGroups[phone] = [];
+                    }
+                    phoneGroups[phone].push(row);
+                }
+                
+                // 每组内处理
+                for (const phone in phoneGroups) {
+                    // 按时间降序排序
+                    phoneGroups[phone].sort((a, b) => {
+                        const timeA = String(a[timeIndex] || '0');
+                        const timeB = String(b[timeIndex] || '0');
+                        return timeB.localeCompare(timeA);
+                    });
+                    
+                    // 地址去重
+                    const addressMap = new Map();
+                    for (const row of phoneGroups[phone]) {
+                        const address = row[addressIndex];
+                        const currentTime = String(row[timeIndex] || '0');
+                        
+                        if (!addressMap.has(address) || 
+                            currentTime.localeCompare(String(addressMap.get(address)[timeIndex] || '0')) > 0) {
+                            addressMap.set(address, row);
+                        }
+                    }
+                    phoneGroups[phone] = Array.from(addressMap.values());
+                }
+                
+                // 合并结果
+                filteredData = [filteredData[0]];
+                for (const phone in phoneGroups) {
+                    filteredData.push(...phoneGroups[phone]);
+                }
+                
+                displayData(filteredData, phones);
+                updateMatchCount(filteredData.length - 1);
+                
+                // 显示/隐藏导出按钮
+                document.getElementById('exportBtn').style.display = 
+                    filteredData.length > 1 ? 'inline-block' : 'none';
+                
+            } catch (error) {
+                console.error('搜索处理错误:', error);
+                showToast('搜索处理出错', 'danger');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // 重置搜索
+        function resetSearch() {
+            document.getElementById('phoneInput').value = '';
+            if (originalData.length) {
+                displayData(originalData);
+                updateMatchCount(originalData.length - 1);
+            }
+            document.getElementById('exportBtn').style.display = 'none';
+        }
+        
+        // 显示数据表格
+        function displayData(data, searchTerms = []) {
+            if (!data || data.length < 2) {
+                document.getElementById('results').innerHTML = 
+                    '<div class="alert alert-warning">没有匹配的数据</div>';
+                return;
+            }
+            
+            const headers = data[0];
+            const rows = data.slice(1);
+            
+            let html = '<table class="table table-striped table-bordered">';
+            
+            // 表头
+            html += '<thead class="table-dark"><tr>';
+            headers.forEach(header => {
+                html += `<th>${header || ''}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+            
+            // 按手机号分组显示数据
+            let currentPhone = '';
+            rows.forEach(row => {
+                const phone = row[0];
+                
+                // 如果是新的手机号，添加分组标题
+                if (phone !== currentPhone) {
+                    const groupRows = rows.filter(r => r[0] === phone);
+                    html += `
+                        <tr class="group-header">
+                            <td colspan="${headers.length}">
+                                手机号: ${phone} (共 ${groupRows.length} 条记录)
+                            </td>
+                        </tr>
+                    `;
+                    currentPhone = phone;
+                }
+                
+                // 数据行
+                html += '<tr>';
+                headers.forEach((_, index) => {
+                    let cellContent = row[index] || '';
+                    
+                    // 如果是手机号列且有搜索词，高亮匹配的手机号
+                    if (index === 0 && searchTerms.length > 0) {
+                        searchTerms.forEach(term => {
+                            const regex = new RegExp(term, 'g');
+                            cellContent = cellContent.replace(regex, 
+                                `<span class="bg-warning">${term}</span>`);
+                        });
+                    }
+                    
+                    html += `<td>${cellContent}</td>`;
+                });
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('results').innerHTML = html;
+        }
+        
+        // 更新匹配计数
+        function updateMatchCount(count) {
+            const countElement = document.getElementById('matchCount');
+            countElement.style.display = 'block';
+            countElement.textContent = `找到 ${count} 条匹配记录`;
+        }
+        
+        // 导出结果
+        async function exportResults() {
+            try {
+                showLoading();
+                
+                const resultTable = document.querySelector('#results table');
+                if (!resultTable) {
+                    showToast('没有可导出的数据', 'warning');
+                    return;
+                }
+                
+                // 收集表格数据
+                const rows = Array.from(resultTable.querySelectorAll('tr'))
+                    .filter(row => !row.classList.contains('group-header'))
+                    .map(row => Array.from(row.cells).map(cell => cell.textContent));
+                
+                // 创建工作簿
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.aoa_to_sheet(rows);
+                XLSX.utils.book_append_sheet(wb, ws, "搜索结果");
+                
+                // 导出文件
+                XLSX.writeFile(wb, `搜索结果_${new Date().toISOString().slice(0,10)}.xlsx`);
+                showToast('导出成功！', 'success');
+                
+            } catch (error) {
+                console.error('导出错误:', error);
+                showToast('导出失败，请重试', 'danger');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // 初始化文件选择按钮
+        document.getElementById('fileSelectBtn').addEventListener('click', function() {
+            document.getElementById('excelFile').click();
+        });
+    </script>
+</body>
+</html>
